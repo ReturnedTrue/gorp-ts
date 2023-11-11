@@ -1,10 +1,10 @@
 {
   "name": "@rbxts/gorp",
   "version": "0.1.0-ts.0",
-  "description": "TODO",
+  "description": "gorp is a tool for ecr that provides many features to track performance and test your game.",
   "repository": {
 	"type": "git",
-	"url": "TODO"
+	"url": "https://github.com/ReturnedTrue/gorp-ts"
   },
   "main": "src/main.lua",
   "types": "src/gorp.d.ts",
@@ -24,6 +24,6 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
-	"@rbxts/ecr": "0.7.0-ts.4"
+	"@rbxts/ecr": "^0.7.0-ts.4"
   }
 }

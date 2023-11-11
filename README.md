@@ -2,6 +2,8 @@
 	<h1>gorp-ts</h1>
 </div>
 
+___
+
 Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
 # Differences to Luau version
@@ -10,6 +12,17 @@ Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
 # Code sample
 
+Server
+
+```ts
+import gorp from "@rbxts/gorp";
+
+// Required for gorp to setup permission remotes, etc
+gorp.server_init();
+
+```
+
+Client
 ```ts
 import gorp, { WidgetType } from "@rbxts/gorp";
 import ecr, { Registry } from "@rbxts/ecr";
@@ -22,18 +35,18 @@ const Velocity = ecr.component<Vector3>();
 // Required for the TS version to access your ecr 
 gorp.set_ecr(ecr);
 
+// Assigns names for the components
+gorp.compat_set_cts({
+	"Position": Position,
+	"Velocity": Velocity,
+})
+
 // Must clone the ecr registry for gorp to be able to access more
 const world = table.clone(ecr.registry());
 
 const entity = world.create();
 world.add(entity, Position)
 world.set(entity, Velocity, new Vector3(10, 0, 0))
-
-// Assigns names for the components
-gorp.compat_set_cts({
-	"Position": Position,
-	"Velocity": Velocity,
-})
 
 gorp.add_world(world, "main_world");
 gorp.spawn_widget(WidgetType.RegistrySelector);
