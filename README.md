@@ -2,8 +2,6 @@
 	<h1>gorp-ts</h1>
 </div>
 
-___
-
 Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
 # Differences to Luau version
