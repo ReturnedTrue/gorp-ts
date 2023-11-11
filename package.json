@@ -1,0 +1,29 @@
+{
+  "name": "@rbxts/gorp",
+  "version": "0.1.0-ts.0",
+  "description": "TODO",
+  "repository": {
+	"type": "git",
+	"url": "TODO"
+  },
+  "main": "src/main.lua",
+  "types": "src/gorp.d.ts",
+  "keywords": [],
+  "license": "MIT",
+  "files": [
+    "src",
+	"LICENSE.md",
+	"README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@rbxts/compiler-types": "^2.2.0-types.0",
+    "@rbxts/types": "^1.0.731",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+	"@rbxts/ecr": "0.7.0-ts.4"
+  }
+}
