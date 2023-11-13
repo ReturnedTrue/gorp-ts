@@ -1,6 +1,7 @@
 local RunService = game:GetService("RunService")
 local SharedTableRegistry = game:GetService("SharedTableRegistry")
 
+local common_actor_id = require(script.Parent.common_actor_id)
 local rts = require(script.Parent.rts)
 local vide = require(script.Parent.Parent.vide)
 
@@ -25,8 +26,10 @@ return vide.root(function()
 
 	return {
 
-		actor = nil :: Actor?,
-		actor_id = nil :: number?,
+		scale = source(1),
+		widgets = {} :: { () -> () },
+
+		actor_id = common_actor_id,
 
 		actors = actors :: { size: number } & SharedTable,
 		all_worlds = all_worlds :: {

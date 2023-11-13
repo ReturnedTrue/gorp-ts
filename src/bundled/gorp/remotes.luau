@@ -89,6 +89,11 @@ return {
 	get_server_cts = get_remote_function("get_server_cts") :: Function<(), ({ [string]: number })>,
 	update_server_cts = get_remote_event("update_server_cts") :: Event<{ [string]: number }>,
 
+	share_server_fps = get_remote_event("share_server_fps") :: Event<number>,
+
+	updated_server_registries = get_remote_event("updated_server_registries") :: Event<{ string }>,
+	updated_server_schedulers = get_remote_event("updated_server_schedulers") :: Event<{ string }>,
+
 	set_query = get_remote_function("set_query") :: Function<
 		(number, number, string),
 		({ number }, { { string } })
@@ -98,7 +103,10 @@ return {
 	get_server_schedulers = get_remote_function("get_schedulers") :: Function<(), ({ string })>,
 	subscribe_scheduler_data = get_remote_function("subscribe_scheduler") :: Function<(number), ({ string })>,
 	unsubscribe_scheduler_data = get_remote_function("unsubscribe_scheduler") :: Function<(number)>,
-	update_scheduler_data = get_remote_event("update_scheduler") :: Event<{ string }>,
+	update_scheduler_data = get_remote_event("update_scheduler") :: Event<number, { string }>,
+
+	pause_scheduler_system = get_remote_event("pause_scheduler_system") :: Event<number, number>,
+	resume_scheduler_system = get_remote_event("resume_scheduler_system") :: Event<number, number>,
 
 	get_system_performance_data = get_remote_function("get_system_data") :: Function<
 		(number, number),

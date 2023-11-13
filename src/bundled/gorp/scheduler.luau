@@ -6,6 +6,7 @@ local RunService = game:GetService("RunService")
 
 ]]
 
+local config = require(script.Parent.config)
 local no_yield = require(script.Parent.no_yield)
 local rolling_average = require(script.Parent.rolling_average)
 local state = require(script.Parent.state)
@@ -28,9 +29,34 @@ function scheduler.new(scheduler_name: string?, hide: boolean?, max: number?)
 	local i = 0
 	local before = {} :: { [() -> ()]: true }
 	local after = {} :: { [() -> ()]: true }
+	local paused = {}
 
-	-- this should be called before a system runs.
-	function self:before(given_name: string)
+	function self:pause(index: number) paused[index] = true end
+
+	function self:resume(index: number) paused[index] = nil end
+
+	function self:get_paused(index: number) return paused[index] or false end
+
+	function self:get_all_paused()
+		local list = {}
+		for index in paused do
+			table.insert(list, index)
+		end
+		return list
+	end
+
+	function self:get_index(name: string)
+		for i, system in systems :: any do
+			if system.name == name then return i end
+		end
+
+		return nil
+	end
+
+	function self:get_system(index: number) return systems[index].name end
+
+	-- this should be called before a systemr runs.
+	function self:_before(given_name: string)
 		i += 1
 
 		name = given_name
@@ -55,18 +81,47 @@ function scheduler.new(scheduler_name: string?, hide: boolean?, max: number?)
 	end
 
 	function self:system<T...>(name: string, system: (T...) -> (), ...: T...)
-		self:before(name)
-		local ok, thread, err = no_yield(system, ...)
-		self:after()
-
-		if ok == false and thread and err then
-			warn("system failed:", debug.traceback(thread, err))
+		if paused[i + 1] then
+			self:skip(name)
+			return
 		end
+
+		if config.allow_yielding then
+			self:_before(name)
+			local ok, err = xpcall(
+				system :: any,
+				function(err) return debug.traceback(err, 2) end,
+				...
+			)
+			self:_after()
+
+			if ok == false then warn("system failed:", err) end
+		else
+			self:_before(name)
+			local ok, thread, err = no_yield(system, ...)
+			self:_after()
+
+			if ok == false and thread and err then
+				warn("system failed:", debug.traceback(thread, err))
+			end
+		end
+	end
+
+	function self:skip<T...>(name: string)
+		i += 1
+		systems[i] = systems[i]
+			or {
+				time = rolling_average.new(max),
+				name = name,
+				_before = {} :: { [() -> ()]: true },
+				_after = {} :: { [() -> ()]: true },
+			}
+		systems[i].name = name
 	end
 
 	-- this should be called after a system runs.
 	-- we'll automatically infer context based on the first call.
-	function self:after(_custom_time: number?)
+	function self:_after(_custom_time: number?)
 		systems[i].time:add(_custom_time or os.clock() - begin)
 		for callback in after do
 			callback()
@@ -80,6 +135,9 @@ function scheduler.new(scheduler_name: string?, hide: boolean?, max: number?)
 	end
 
 	function self:finish() i = 0 end
+
+	self.before = self._before
+	self.after = self._after
 
 	-- internal
 
@@ -116,7 +174,7 @@ function scheduler.new(scheduler_name: string?, hide: boolean?, max: number?)
 	if hide then return self end
 
 	local schedulers = state.schedulers()
-	table.insert(schedulers, self)
+	table.insert(schedulers, self :: any)
 	state.schedulers(schedulers)
 
 	if RunService:IsServer() then

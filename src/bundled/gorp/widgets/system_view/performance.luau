@@ -50,15 +50,18 @@ return function(
 	}>,
 	disable: () -> ()
 )
+	local long_term_sample = rolling_average.new(10)
 	local heartbeat = source(0)
 	local budget = derive(function()
 		heartbeat()
-		local average = time:average()
+		local average = long_term_sample:average()
 
-		return average > 0.004 and 0.010
-			or average > 0.001 and 0.004
-			or average > 0.0006 and 0.001
-			or 0.0006
+		return average > 0.003 and 0.01
+			or average > 0.001 and 0.005
+			or average > 0.0009 and 0.002
+			or average > 0.0004 and 0.001
+			or average > 0.00015 and 0.0006
+			or 0.00025
 	end)
 	local max = derive(function()
 		heartbeat()
@@ -69,8 +72,14 @@ return function(
 		return math.min(unpack(time.values))
 	end)
 
-	local connection = RunService.Heartbeat:Connect(heartbeat)
-	cleanup(function() connection:Disconnect() end)
+	local i = 0
+
+	cleanup(RunService.Heartbeat:Connect(heartbeat))
+	cleanup(RunService.Heartbeat:Connect(function()
+		i += 1
+		if i < 10 then long_term_sample:add(time:average()) end
+		if i % 10 == 0 then long_term_sample:add(time:average()) end
+	end))
 
 	-- track queries.
 	-- we inject a call into every single world and modify their :view call so
@@ -106,11 +115,11 @@ return function(
 						end,
 						Position = function()
 							return UDim2.fromScale(
-								1 / #time.values * (key - 1),
+								1 - 1 / #time.values * (key - 1),
 								1
 							)
 						end,
-						AnchorPoint = Vector2.new(0, 1),
+						AnchorPoint = Vector2.new(1, 1),
 
 						BackgroundColor3 = function()
 							return if value() > budget() then RED else WHITE
@@ -184,7 +193,7 @@ return function(
 			text {
 				text = function()
 					heartbeat()
-					return `budget: {transform(budget())}\tmax: {transform(min())}\tmin: {transform(max())}\taverage: {transform(
+					return `budget: {transform(budget())}\tmax: {transform(max())}\tmin: {transform(min())}\taverage: {transform(
 						time:average()
 					)}`
 				end,

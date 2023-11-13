@@ -30,8 +30,19 @@ export type Scheduler = {
 		}
 	},
 
-	before: (Scheduler, given_name: string) -> (),
-	after: (Scheduler) -> (),
+	pause: (Scheduler, index: number) -> (),
+	resume: (Scheduler, index: number) -> (),
+	get_all_paused: (Scheduler) -> { number },
+	get_paused: (Scheduler, index: number) -> boolean,
+
+	get_index: (Scheduler, name: string) -> number?,
+	get_system: (Scheduler, index: number) -> string,
+
+	system: <T...>(Scheduler, name: string, system: (T...) -> (), T...) -> (),
+	skip: (Scheduler, name: string) -> (),
+
+	_before: (Scheduler, given_name: string) -> (),
+	_after: (Scheduler) -> (),
 	finish: (Scheduler) -> (),
 
 	_hook_before_system: (
