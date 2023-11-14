@@ -5,8 +5,8 @@
 Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
 # Differences to Luau version
-- gorp by default relies on it being alongside ecr in the wally packages directory. To replicate this behaviour, you must call `gorp.set_ecr(ecr)` before working with gorp. 
-- This package is versioned with `<gorp version>-ts.<x>` where x is incremented for any changes to the TS version in particular 
+- gorp by default relies on it being alongside ecr in the wally packages directory. To replicate this behaviour, you must call `gorp.set_ecr(ecr)` before working with gorp. It must only be called from one script, but must be called before other scripts interact with gorp.
+- This package is versioned with `<gorp version>-ts.<x>` where x is incremented for any changes to the TS version in particular.
 
 # Code sample
 
@@ -14,10 +14,10 @@ Server
 
 ```ts
 import gorp from "@rbxts/gorp";
+import ecr from "@rbxts/ecr";
 
-// Required for gorp to setup permission remotes, etc
-gorp.server_init();
-
+// Required for gorp to setup 
+gorp.set_ecr(ecr);
 ```
 
 Client
