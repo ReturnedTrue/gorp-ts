@@ -4,13 +4,18 @@
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local remotes = require(script.Parent.Parent.remotes)
 local state = require(script.Parent.Parent.state)
 
 local subscribed = {}
 
-local function subscribe_scheduler_data(player: Player, index: number)
+local function subscribe_scheduler_data(
+	player: Player,
+	index: number,
+	s_index: number
+)
 	assert(state.can_use_debugger(player))
 	subscribed[player] = subscribed[player] or {}
 
@@ -21,8 +26,12 @@ local function subscribe_scheduler_data(player: Player, index: number)
 		local values = {}
 
 		for index, system in scheduler.systems do
-			values[index] =
-				string.pack("zf", system.name, system.time:average())
+			values[index] = string.pack(
+				"zfB",
+				system.name,
+				system.time:average(),
+				if scheduler:get_paused(index) then 255 else 0
+			)
 		end
 
 		return values
@@ -41,7 +50,11 @@ local function subscribe_scheduler_data(player: Player, index: number)
 			and subscribed[player]
 			and subscribed[player][index] > 0
 		do
-			remotes.update_scheduler_data:FireClient(player, get_packet())
+			remotes.update_scheduler_data:FireClient(
+				player,
+				s_index,
+				get_packet()
+			)
 		end
 		if subscribed[player] == nil then return end
 		subscribed[player][index] = nil
@@ -56,8 +69,11 @@ local function unsubscribe_scheduler_data(player: Player, index: number)
 	subscribed[player][index] -= 1
 end
 
+local players_receiving = {}
+
 local function get_schedulers(player: Player)
-	assert(state.can_use_debugger(player))
+	if not state.can_use_debugger(player) then return {} end
+	players_receiving[player] = true
 
 	local schedulers = {}
 
@@ -68,7 +84,27 @@ local function get_schedulers(player: Player)
 	return schedulers
 end
 
-Players.PlayerRemoving:Connect(function(player) subscribed[player] = nil end)
+local old_size = state.all_schedulers.size
+RunService.Heartbeat:Connect(function()
+	if old_size == state.all_schedulers.size then return end
+
+	local schedulers = {}
+
+	for i, scheduler in state.all_schedulers.entries :: any do
+		table.insert(schedulers, scheduler.name)
+	end
+
+	for player in players_receiving do
+		remotes.updated_server_schedulers:FireClient(player, schedulers)
+	end
+
+	old_size = state.all_schedulers.size
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	subscribed[player] = nil
+	players_receiving[player] = nil
+end)
 
 return {
 

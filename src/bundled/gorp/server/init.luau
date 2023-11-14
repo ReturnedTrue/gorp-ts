@@ -1,3 +1,5 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 --[[
 
 	Binds all things to the remotes
@@ -7,12 +9,12 @@
 local cts = require(script.cts)
 local registry = require(script.registry)
 local remotes = require(script.Parent.remotes)
+local rolling_average = require(script.Parent.rolling_average)
 local scheduler = require(script.scheduler)
 local state = require(script.Parent.state)
 local system = require(script.system)
 
-local actor = state.actor
-if not actor then
+if state.actor_id == 1 then
 	local id = 0
 	local function invoke_actor(remote: any, actor: number, ...: any): ...any
 		if remote:IsA("RemoteEvent") then
@@ -76,10 +78,15 @@ if not actor then
 				remotes.subscribe_scheduler_data,
 				entry.actor,
 				player,
-				entry.index
+				entry.index,
+				scheduler_index
 			)
 		else
-			return scheduler.subscribe_scheduler_data(player, entry.index)
+			return scheduler.subscribe_scheduler_data(
+				player,
+				entry.index,
+				scheduler_index
+			)
 		end
 	end
 
@@ -112,12 +119,53 @@ if not actor then
 				entry.actor,
 				player,
 				entry.index,
-				sys
+				sys,
+
+				index
 			)
 		else
-			return system.get_system_performance_data(player, entry.index, sys)
+			return system.get_system_performance_data(
+				player,
+				entry.index,
+				sys,
+				index
+			)
 		end
 	end
+
+	remotes.pause_scheduler_system.OnServerEvent:Connect(
+		function(player, index, sys)
+			local entry = (state.all_schedulers.entries :: any)[index]
+			if entry.actor ~= state.actor_id then
+				return invoke_actor(
+					remotes.pause_scheduler_system,
+					entry.actor,
+					player,
+					entry.index,
+					sys
+				)
+			else
+				return system.pause_system(player, entry.index, sys)
+			end
+		end
+	)
+
+	remotes.resume_scheduler_system.OnServerEvent:Connect(
+		function(player, index, sys)
+			local entry = (state.all_schedulers.entries :: any)[index]
+			if entry.actor ~= state.actor_id then
+				return invoke_actor(
+					remotes.resume_scheduler_system,
+					entry.actor,
+					player,
+					entry.index,
+					sys
+				)
+			else
+				return system.resume_system(player, entry.index, sys)
+			end
+		end
+	)
 
 	remotes.set_query.OnServerInvoke = function(
 		player,
@@ -176,6 +224,22 @@ if not actor then
 			end
 		end
 	)
+
+	local average = rolling_average.new(20)
+	local i = 0
+
+	RunService.Heartbeat:Connect(function(dt)
+		average:add(dt)
+
+		i += 1
+
+		if i % 5 ~= 0 then return end
+
+		for _, player in Players:GetPlayers() do
+			if state.can_use_debugger(player) == false then continue end
+			remotes.share_server_fps:FireClient(player, average:average())
+		end
+	end)
 else
 	-- mental sanity is dripping away
 	local function bind_actor_to(remote: any, callback: (...any) -> ...any)
@@ -207,6 +271,12 @@ else
 		remotes.get_system_performance_data,
 		system.get_system_performance_data
 	)
+
+	bind_actor_to(remotes.update_entities, registry.update_entities)
+	bind_actor_to(remotes.get_all_entity_values, registry.get_all_entity_values)
+
+	bind_actor_to(remotes.pause_scheduler_system, system.pause_system)
+	bind_actor_to(remotes.resume_scheduler_system, system.resume_system)
 end
 
 return {

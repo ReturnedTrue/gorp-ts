@@ -7,10 +7,33 @@ local system_query_hook = require(script.Parent.Parent.system_query_hook)
 
 local active = {}
 
-local function get_system_performance_data(
+local function pause_system(
 	player: Player,
 	scheduler_id: number,
 	system_id: number
+)
+	assert(state.can_use_debugger(player), "cannot use debugger")
+
+	local scheduler = state.schedulers()[scheduler_id]
+	scheduler:pause(system_id)
+end
+
+local function resume_system(
+	player: Player,
+	scheduler_id: number,
+	system_id: number
+)
+	assert(state.can_use_debugger(player), "cannot use debugger")
+
+	local scheduler = state.schedulers()[scheduler_id]
+	scheduler:resume(system_id)
+end
+
+local function get_system_performance_data(
+	player: Player,
+	scheduler_id: number,
+	system_id: number,
+	raw_scheduler_id: number
 )
 	assert(state.can_use_debugger(player), "cannot use debugger")
 
@@ -56,9 +79,10 @@ local function get_system_performance_data(
 	active[player][scheduler][system_id].disable = hook:enable()
 	active[player][scheduler][system_id].connection = RunService.Heartbeat:Connect(
 		function()
+			if scheduler:get_paused(system_id) then return end
 			remotes.update_system_performance_data:FireClient(
 				player,
-				scheduler_id,
+				raw_scheduler_id,
 				system_id,
 				system.time.values[1],
 				get_packet()
@@ -101,4 +125,7 @@ return {
 
 	disconnect = disconnect,
 	get_system_performance_data = get_system_performance_data,
+
+	pause_system = pause_system,
+	resume_system = resume_system,
 }

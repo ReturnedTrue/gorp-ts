@@ -192,11 +192,13 @@ return function(name: string, registry: number)
 			end
 		end
 
-		remotes.update_entities:FireServer(
-			registry,
-			packets_changed,
-			packets_removing
-		)
+		if #packets_changed > 0 or #packets_removing > 0 then
+			remotes.update_entities:FireServer(
+				registry,
+				packets_changed,
+				packets_removing
+			)
+		end
 
 		table.clear(changed :: any)
 		table.clear(removing :: any)
@@ -215,7 +217,7 @@ return function(name: string, registry: number)
 		end,
 
 		_ignore_heuristic = true,
-		function(id: number)
+		get_components = function(id: number)
 			local ctypes, values =
 				remotes.get_all_entity_values:InvokeServer(registry, id)
 			local entity = {}

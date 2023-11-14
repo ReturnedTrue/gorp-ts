@@ -1,6 +1,6 @@
 {
   "name": "@rbxts/gorp",
-  "version": "0.1.0-ts.0",
+  "version": "0.1.1-ts.0",
   "description": "gorp is a tool for ecr that provides many features to track performance and test your game.",
   "repository": {
 	"type": "git",
