@@ -176,7 +176,13 @@ export declare interface GorpConfig {
 }
 
 export declare interface GorpComponents {
-	widget(props: {title: string, size?: Vector2, min_size?: Vector2, closeable?: boolean}): Instance
+	widget(this: void, props: {
+		title: string, 
+		size?: Vector2, 
+		min_size?: Vector2, 
+		closeable?: boolean,
+		children?: (() => Instance | Instance[])
+	}): Instance
 }
 
 declare class Scheduler {
