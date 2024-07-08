@@ -1,287 +1,131 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 --[[
 
-	Binds all things to the remotes
+	servers can be created across parallel instances and must provide a strong
+	interface purely only through signals and functions for the client.
 
 ]]
 
-local cts = require(script.cts)
-local registry = require(script.registry)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local common_actor_id = require(script.Parent.common_actor_id)
+local events = require(script.events)
+local generic_ecs_layer = require(script.Parent.generic_ecs_layer)
 local remotes = require(script.Parent.remotes)
-local rolling_average = require(script.Parent.rolling_average)
 local scheduler = require(script.scheduler)
-local state = require(script.Parent.state)
-local system = require(script.system)
+local server_state = require(script.server_state)
+local traffic_check = require(script.Parent.modules.traffic_check)
 
-if state.actor_id == 1 then
-	local id = 0
-	local function invoke_actor(remote: any, actor: number, ...: any): ...any
-		if remote:IsA("RemoteEvent") then
-			remote.actor:Fire(actor, ...)
-			return
-		end
+local remove_active_connectors = require(script.systems.remove_active_connectors)
+local replicate_components = require(script.systems.replicate_components)
+local replicate_core = require(script.systems.replicate_core)
+local replicate_entity = require(script.systems.replicate_entity)
+local replicate_fps = require(script.systems.replicate_fps)
+local replicate_registry = require(script.systems.replicate_registry)
+local replicate_scheduler = require(script.systems.replicate_scheduler)
+local replicate_system_performance = require(script.systems.replicate_system_performance)
 
-		id += 1
-		local stored = id
+--- Adds the given world
+local function add_world<T>(world: T, name: string?): T
+	local default_name = `World {#server_state.registries}`
+	world = generic_ecs_layer.on_hook_world(world)
 
-		local connection
-		local packed
+	local entry = {
+		name = name or default_name,
+		world = world,
+	}
 
-		-- watch this not work because coroutine.yield breaks things
-		connection = remote.ReturnData.Event:Connect(function(actor_id, ...)
-			if actor_id ~= stored then return end
+	events.world_created:fire(entry)
 
-			connection:Disconnect()
-			packed = { ... }
-		end)
-
-		remote.actor:Fire(actor, stored, ...)
-
-		while not packed do
-			task.wait()
-		end
-
-		return unpack(packed)
-	end
-
-	remotes.get_server_schedulers.OnServerInvoke = scheduler.get_schedulers
-	remotes.get_server_registries.OnServerInvoke =
-		registry.get_server_registries
-	remotes.get_server_cts.OnServerInvoke = cts.get_server_cts
-
-	-- i hate working with this
-	remotes.stop_flow_system_performance_data.OnServerEvent:Connect(
-		function(player: Player, index: number, sys: number)
-			local entry = (state.all_schedulers.entries :: any)[index]
-			if entry.actor ~= state.actor_id then
-				return invoke_actor(
-					remotes.stop_flow_system_performance_data,
-					entry.actor,
-					player,
-					entry.index,
-					sys
-				)
-			else
-				return system.disconnect(player, entry.index, sys)
-			end
-		end
-	)
-
-	remotes.subscribe_scheduler_data.OnServerInvoke = function(
-		player,
-		scheduler_index
-	)
-		local entry = (state.all_schedulers.entries :: any)[scheduler_index]
-		if entry.actor ~= state.actor_id then
-			return invoke_actor(
-				remotes.subscribe_scheduler_data,
-				entry.actor,
-				player,
-				entry.index,
-				scheduler_index
-			)
-		else
-			return scheduler.subscribe_scheduler_data(
-				player,
-				entry.index,
-				scheduler_index
-			)
-		end
-	end
-
-	remotes.unsubscribe_scheduler_data.OnServerInvoke = function(
-		player,
-		scheduler_index
-	)
-		local entry = (state.all_schedulers.entries :: any)[scheduler_index]
-		if entry.actor ~= state.actor_id then
-			return invoke_actor(
-				remotes.unsubscribe_scheduler_data,
-				entry.actor,
-				player,
-				entry.index
-			)
-		else
-			return scheduler.unsubscribe_scheduler_data(player, entry.index)
-		end
-	end
-
-	remotes.get_system_performance_data.OnServerInvoke = function(
-		player,
-		index,
-		sys
-	)
-		local entry = (state.all_schedulers.entries :: any)[index]
-		if entry.actor ~= state.actor_id then
-			return invoke_actor(
-				remotes.get_system_performance_data,
-				entry.actor,
-				player,
-				entry.index,
-				sys,
-
-				index
-			)
-		else
-			return system.get_system_performance_data(
-				player,
-				entry.index,
-				sys,
-				index
-			)
-		end
-	end
-
-	remotes.pause_scheduler_system.OnServerEvent:Connect(
-		function(player, index, sys)
-			local entry = (state.all_schedulers.entries :: any)[index]
-			if entry.actor ~= state.actor_id then
-				return invoke_actor(
-					remotes.pause_scheduler_system,
-					entry.actor,
-					player,
-					entry.index,
-					sys
-				)
-			else
-				return system.pause_system(player, entry.index, sys)
-			end
-		end
-	)
-
-	remotes.resume_scheduler_system.OnServerEvent:Connect(
-		function(player, index, sys)
-			local entry = (state.all_schedulers.entries :: any)[index]
-			if entry.actor ~= state.actor_id then
-				return invoke_actor(
-					remotes.resume_scheduler_system,
-					entry.actor,
-					player,
-					entry.index,
-					sys
-				)
-			else
-				return system.resume_system(player, entry.index, sys)
-			end
-		end
-	)
-
-	remotes.set_query.OnServerInvoke = function(
-		player,
-		query_id,
-		reg_index,
-		query
-	)
-		local entry = (state.all_worlds.entries :: any)[reg_index]
-		if entry.actor ~= state.actor_id then
-			return invoke_actor(
-				remotes.set_query,
-				entry.actor,
-				player,
-				query_id,
-				entry.index,
-				query
-			)
-		else
-			return registry.set_query(player, query_id, entry.index, query)
-		end
-	end
-
-	remotes.get_all_entity_values.OnServerInvoke = function(
-		player,
-		reg_index,
-		ent
-	)
-		local entry = (state.all_worlds.entries :: any)[reg_index]
-		if entry.actor then
-			return invoke_actor(
-				remotes.get_all_entity_values,
-				entry.actor,
-				player,
-				entry.index,
-				ent
-			)
-		else
-			return registry.get_all_entity_values(player, entry.index, ent)
-		end
-	end
-
-	remotes.update_entities.OnServerEvent:Connect(
-		function(player, reg_index, changed, removing)
-			local entry = (state.all_worlds.entries :: any)[reg_index]
-			if entry.actor then
-				invoke_actor(
-					remotes.update_entities,
-					entry.actor,
-					player,
-					entry.index,
-					changed,
-					removing
-				)
-			else
-				registry.update_entities(player, entry.index, changed, removing)
-			end
-		end
-	)
-
-	local average = rolling_average.new(20)
-	local i = 0
-
-	RunService.Heartbeat:Connect(function(dt)
-		average:add(dt)
-
-		i += 1
-
-		if i % 5 ~= 0 then return end
-
-		for _, player in Players:GetPlayers() do
-			if state.can_use_debugger(player) == false then continue end
-			remotes.share_server_fps:FireClient(player, average:average())
-		end
-	end)
-else
-	-- mental sanity is dripping away
-	local function bind_actor_to(remote: any, callback: (...any) -> ...any)
-		if remote:IsA("RemoteEvent") then
-			remote.actor.Event:Connect(function(actor, ...)
-				if actor ~= state.actor_id then return end
-				callback(...)
-			end)
-		else
-			remote.actor.Event:Connect(function(actor, id, ...)
-				if actor ~= state.actor_id then return end
-				remote.ReturnData:Fire(id, callback(...))
-			end)
-		end
-	end
-
-	bind_actor_to(remotes.set_query, registry.set_query)
-	bind_actor_to(remotes.get_all_entity_values, registry.get_all_entity_values)
-	bind_actor_to(remotes.stop_flow_system_performance_data, system.disconnect)
-	bind_actor_to(
-		remotes.subscribe_scheduler_data,
-		scheduler.subscribe_scheduler_data
-	)
-	bind_actor_to(
-		remotes.unsubscribe_scheduler_data,
-		scheduler.unsubscribe_scheduler_data
-	)
-	bind_actor_to(
-		remotes.get_system_performance_data,
-		system.get_system_performance_data
-	)
-
-	bind_actor_to(remotes.update_entities, registry.update_entities)
-	bind_actor_to(remotes.get_all_entity_values, registry.get_all_entity_values)
-
-	bind_actor_to(remotes.pause_scheduler_system, system.pause_system)
-	bind_actor_to(remotes.resume_scheduler_system, system.resume_system)
+	table.insert(server_state.registries, entry)
+	return world
 end
 
-return {
+--- Adds all the components provided here
+local function names<T>(components: T & { [string]: unknown }): T
+	for name, ctype in components :: any do
+		name = string.lower(name)
+		local index = #server_state.ctype_index + 1
 
-	registry = registry,
+		server_state.ctype_index[index] = ctype
+		server_state.ctype_names[name] = ctype
+		server_state.map_ctype_index[ctype] = index
+		server_state.ctype_index_names[name] = index
+		server_state.ctypes[index] = name
+
+		table.insert(server_state.registered_components, ctype)
+	end
+
+	events.components_updated:fire(true)
+	return components
+end
+
+local function get_worlds()
+	local worlds = {}
+	for _, world in server_state.registries do
+		table.insert(worlds, world.world)
+	end
+	return worlds
+end
+
+--[[local function get_components()
+	return {
+
+		ctype_index = server_state.ctype_index,
+		ctype_names = server_state.ctype_names,
+		map_ctype_index = server_state.map_ctype_index,
+		ctype_index_names = server_state.ctype_index_names,
+		ctypes = server_state.ctypes,
+	}
+end
+]]
+
+local server = {
+	hook_world = add_world,
+	get_worlds = get_worlds,
+	names = names,
 	scheduler = scheduler,
-	cts = cts.get_server_cts,
+
+	components = server_state.registered_components,
+	map_ctype_to_index = server_state.map_ctype_index,
+	map_index_to_ctype = server_state.ctype_index,
 }
+
+local server_scheduler = scheduler(`gorpserver:{common_actor_id}`)
+
+RunService.Heartbeat:Connect(function(dt)
+	server_scheduler:system("remove_active_connectors", remove_active_connectors)
+	server_scheduler:system("replicate_core", replicate_core)
+	server_scheduler:system("replicate_components", replicate_components)
+	server_scheduler:system("replicate_registry", replicate_registry)
+	server_scheduler:system("replicate_scheduler", replicate_scheduler)
+	server_scheduler:system("replicate_system_performance", replicate_system_performance)
+	server_scheduler:system("replicate_entity", replicate_entity)
+	if RunService:IsServer() then server_scheduler:system("replicate_fps", replicate_fps, dt) end
+
+	server_scheduler:finish()
+end)
+
+task.spawn(function()
+	-- we broadcast the existance of the server to everyone
+	if RunService:IsServer() then
+		for _, player in Players:GetPlayers() do
+			if traffic_check.is_player_permitted(player) == false then continue end
+			local connector = {
+				namespace = "client" :: "client",
+				player = player,
+			}
+
+			remotes.new_server:fire(connector)
+		end
+	else
+		if traffic_check.is_player_permitted(Players.LocalPlayer) == false then return end
+		local connector = {
+			namespace = "client" :: "client",
+		}
+
+		remotes.new_server:fire(connector)
+	end
+end)
+
+return server

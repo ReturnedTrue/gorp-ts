@@ -5,66 +5,72 @@
 Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
 # Differences to Luau version
-- gorp by default relies on it being alongside ecr in the wally packages directory. To replicate this behaviour, you must call `gorp.set_ecr(ecr)` before working with gorp. It must only be called from one script, but must be called before other scripts interact with gorp.
 - This package is versioned with `<gorp version>-ts.<x>` where x is incremented for any changes to the TS version in particular.
 
-# Code sample
+# Code sample with ecr
+
+The following requires the [gorp-ecr](https://github.com/ReturnedTrue/gorp-ecr) package
 
 Server
 
 ```ts
-import gorp from "@rbxts/gorp";
 import ecr from "@rbxts/ecr";
+import gorp from "@rbxts/gorp";
+import gorp_ecr from "@rbxts/gorp-ecr";
 
-// Required for gorp to setup 
-gorp.set_ecr(ecr);
+// Required, sets up the ecs layer for ecr
+gorp_ecr.init({ ecr, gorp });
 ```
 
 Client
 ```ts
-import gorp, { WidgetType } from "@rbxts/gorp";
-import ecr, { Registry } from "@rbxts/ecr";
+import ecr from "@rbxts/ecr";
+import gorp from "@rbxts/gorp";
+import gorp_ecr from "@rbxts/gorp-ecr";
 
-const RunService = game.GetService("RunService");
+// Required, sets up the ecs layer for ecr
+gorp_ecr.init({ ecr, gorp });
 
+// Create components
 const Position = ecr.component(() => Vector3.zero);
 const Velocity = ecr.component<Vector3>();
 
-// Required for the TS version to access your ecr 
-gorp.set_ecr(ecr);
+// Assign names to components
+gorp.names({ pos: Position, vel: Velocity });
 
-// Assigns names for the components
-gorp.compat_set_cts({
-	"Position": Position,
-	"Velocity": Velocity,
-})
+// Create world and assign name
+const world = ecr.registry();
+gorp.hook_world(world, "main_world");
 
-// Must clone the ecr registry for gorp to be able to access more
-const world = table.clone(ecr.registry());
+// Get the client and mount the selector interface
+const client = gorp.get_client();
+client.gorp_selector();
 
-const entity = world.create();
-world.add(entity, Position)
-world.set(entity, Velocity, new Vector3(10, 0, 0))
+// Create entity, assign components
+const ent = world.create();
+world.add(ent, Position);
+world.set(ent, Velocity, Vector3.xAxis);
 
-gorp.add_world(world, "main_world");
-gorp.spawn_widget(WidgetType.RegistrySelector);
+// Create scheduler
+const scheduler = gorp.scheduler("main_scheduler");
 
-const scheduler = new gorp.scheduler("main_scheduler");
-
-function position_system(registry: Registry, dt: number) {
-	for (const [id, pos, vel] of registry.view(Position, Velocity)) {
-		registry.set(id, Position, pos.add(vel.mul(dt)));
+function position_system(dt: number) {
+	for (const [id, pos, vel] of world.view(Position, Velocity)) {
+		world.set(id, Position, pos.add(vel.mul(dt)));
 	}
 }
 
-RunService.RenderStepped.Connect((dt) => {
-	// Run our system with a given name
-	scheduler.system("position_system", position_system, world, dt);
-
-	// Tells the scheduler our game loop is finished
+// Run the system every frame in the scheduler
+game.GetService("RunService").RenderStepped.Connect((dt) => {
+	scheduler.system("position_system", position_system, dt);
 	scheduler.finish();
-})
+});
 
-// Shows all the gorp widgets, enabling could be controlled by key input
-gorp.enabled(true);
+// Connect F keybind to toggle the interface
+game.GetService("UserInputService").InputBegan.Connect((input) => {
+	if (input.KeyCode === Enum.KeyCode.F) {
+		client.enabled(!client.enabled());
+	}
+});
+
 ```

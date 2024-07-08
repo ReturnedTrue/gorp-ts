@@ -1,132 +1,79 @@
 --[[
 
-	A basic remote event wrapper to handle basic networking tasks.
-
-	We opted to use a basic solution rather than something like BridgeNet as it's much simpler.
+	contains a bunch of Events that you can listen to.
 
 ]]
 
-local RunService = game:GetService("RunService")
+local net = require(script.Parent.modules.net)
 
-type Event<T...> = {
+export type connector = net.connector
 
-	Name: string,
+type Entity = unknown
+type ComponentReference = number
+type Value = unknown
 
-	OnServerEvent: RBXScriptSignal<(Player, T...)>,
-	OnClientEvent: RBXScriptSignal<T...>,
+type NetEvent<T...> = net.NetEvent<T...>
+type NetCallback<T..., U...> = net.NetCallback<T..., U...>
 
-	FireServer: (any, T...) -> (),
-	FireClient: (any, player: Player, T...) -> (),
-
-	actor: {
-		Fire: (any, Actor, T...) -> (),
-		Event: RBXScriptSignal<(Actor, T...)>,
+type SchedulerPacket = {
+	average_times: buffer,
+	paused: buffer,
+	system_order_changes: {
+		[number]: { name: string, old: number, new: number } | { old: number },
 	},
 }
-
-type Function<T..., U...> = {
-	Name: string,
-
-	OnServerInvoke: (Player: Player, T...) -> U...,
-
-	InvokeServer: (any, T...) -> U...,
-
-	actor: {
-		Fire: (any, Actor, number, T...) -> (),
-		Event: RBXScriptSignal<(Actor, number, T...)>,
-	},
-
-	ReturnData: {
-		Fire: (any, number, U...) -> (),
-		Event: RBXScriptSignal<(number, U...)>,
-	},
-}
-
-local function get_remote_event(name: string): any
-	if RunService:IsServer() then
-		return script:FindFirstChild(name) :: RemoteEvent
-			or (function()
-				local remote = Instance.new("RemoteEvent")
-				remote.Name = name
-				remote.Parent = script
-
-				local fire_actor = Instance.new("BindableEvent")
-				fire_actor.Name = "actor"
-				fire_actor.Parent = remote
-				return remote
-			end)()
-	else
-		return script:WaitForChild(name) :: RemoteEvent
-	end
-end
-
-local function get_remote_function(name: string): any
-	if RunService:IsServer() then
-		return script:FindFirstChild(name) :: RemoteFunction
-			or (function()
-				local remote = Instance.new("RemoteFunction")
-				remote.Name = name
-				remote.Parent = script
-
-				local bindable_event = Instance.new("BindableEvent")
-				bindable_event.Name = "ReturnData"
-				bindable_event.Parent = remote
-
-				local fire_actor = Instance.new("BindableEvent")
-				fire_actor.Name = "actor"
-				fire_actor.Parent = remote
-				return remote
-			end)()
-	else
-		return script:WaitForChild(name) :: RemoteFunction
-	end
-end
 
 return {
 
-	check_if_permission = get_remote_function("check_if_permission") :: Function<(), (boolean)>,
-	get_server_registries = get_remote_function("get_server_registries") :: Function<(), ({ string })>,
-	get_server_cts = get_remote_function("get_server_cts") :: Function<(), ({ [string]: number })>,
-	update_server_cts = get_remote_event("update_server_cts") :: Event<{ [string]: number }>,
+	replicate_core_data = net.create_event("replicate_core_data"),
+	replicate_components = net.create_event("replicate_components"),
+	request_servers = net.create_event("request_servers"),
+	new_server = net.create_event("new_server"),
 
-	share_server_fps = get_remote_event("share_server_fps") :: Event<number>,
+	get_new_replicated_query = net.create_callback("get_new_replicated_query"),
+	stop_replicated_query = net.create_event("stop_query"),
+	replicate_query_data = net.create_event("replicate_query_data"),
 
-	updated_server_registries = get_remote_event("updated_server_registries") :: Event<{ string }>,
-	updated_server_schedulers = get_remote_event("updated_server_schedulers") :: Event<{ string }>,
+	subscribe_scheduler = net.create_callback("subscribe_to_scheduler"),
+	unsubscribe_scheduler = net.create_event("unsubscribe_to_scheduler"),
+	replicate_scheduler = net.create_event("replicate_scheduler"),
+	pause_system = net.create_event("pause_system"),
 
-	set_query = get_remote_function("set_query") :: Function<
-		(number, number, string),
-		({ number }, { { string } })
-	>,
-	query_changed = get_remote_event("query_changed") :: Event<number, { { any } }, { number }>,
+	subscribe_system = net.create_callback("subscribe_system"),
+	unsubscribe_system = net.create_event("unsubscribe_system"),
+	replicate_system_times = net.create_event("replicate_system_times", true),
 
-	get_server_schedulers = get_remote_function("get_schedulers") :: Function<(), ({ string })>,
-	subscribe_scheduler_data = get_remote_function("subscribe_scheduler") :: Function<(number), ({ string })>,
-	unsubscribe_scheduler_data = get_remote_function("unsubscribe_scheduler") :: Function<(number)>,
-	update_scheduler_data = get_remote_event("update_scheduler") :: Event<number, { string }>,
+	get_entity_data = net.create_callback("get_entity_data"),
+	write_entity_data = net.create_event("write_entity_data"),
 
-	pause_scheduler_system = get_remote_event("pause_scheduler_system") :: Event<number, number>,
-	resume_scheduler_system = get_remote_event("resume_scheduler_system") :: Event<number, number>,
+	replicate_fps = net.create_event("replicate_fps", true),
+} :: {
 
-	get_system_performance_data = get_remote_function("get_system_data") :: Function<
-		(number, number),
-		({ number }, { { any } })
-	>,
-	update_system_performance_data = get_remote_event(
-		"update_system_performance_data"
-	) :: Event<
-		number,
-		number,
-		number,
-		{ { any } }
-	>,
-	stop_flow_system_performance_data = get_remote_event(
-		"stop_flow_system_performance"
-	) :: Event<number, number>,
+	replicate_core_data: NetEvent<{ { name: string, id: number } }, { { name: string, id: number } }>,
+	replicate_components: NetEvent<{ [ComponentReference]: string }>,
+	request_servers: NetEvent<>,
+	new_server: NetEvent<>,
 
-	get_all_entity_values = get_remote_function("get_all_entity_values") :: Function<
-		(number, number),
-		({ number }, { any })
-	>,
-	update_entities = get_remote_event("update_value") :: Event<number, { { any } }, { { any } }>,
+	get_new_replicated_query: NetCallback<(string, number), (number)>,
+	stop_replicated_query: NetEvent<number>,
+	replicate_query_data: NetEvent<number, { { any } }, { number }>,
+
+	subscribe_scheduler: NetCallback<(number), (number)>,
+	unsubscribe_scheduler: NetEvent<number>,
+	replicate_scheduler: NetEvent<number, SchedulerPacket>,
+	pause_system: NetEvent<number, string, boolean>,
+
+	--- Requests to subscribe to a specific system and returns a subscription id which can be used to cancel
+	--- (scheduler_id: number, system_name: string) -> (subscription_id: number)
+	subscribe_system: NetCallback<(number, string), (number)>,
+	--- Requests to cancel the given subscription id for a system subscription
+	unsubscribe_system: NetEvent<(number)>,
+	--- Gives us the active subscription_id and the associated system's time that it took to run for the last frame.
+	--- (packet: buffer)
+	replicate_system_times: NetEvent<(buffer, { { any } })>,
+
+	get_entity_data: NetCallback<(number, Entity), ({ ComponentReference }, { Value })>,
+	write_entity_data: NetEvent<(number, Entity, { ComponentReference }, { Value })>,
+
+	replicate_fps: NetEvent<(number, number)>,
 }
