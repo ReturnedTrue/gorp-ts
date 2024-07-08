@@ -9,7 +9,7 @@ Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
 # Code sample with ecr
 
-The following requires the [gorp-ecr](https://github.com/ReturnedTrue/gorp-ecr) package
+The following requires the [gorp-ecr](https://github.com/ReturnedTrue/gorp-ecr-ts) package
 
 Server
 
