@@ -4,6 +4,9 @@
 
 Fork of [gorp](https://github.com/Aloroid/gorp) for Roblox-ts.
 
+# Notice
+It is preferred that you use jabby / ebba for new work.
+
 # Differences to Luau version
 - This package is versioned with `<gorp version>-ts.<x>` where x is incremented for any changes to the TS version in particular.
 
